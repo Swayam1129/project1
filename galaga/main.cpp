@@ -112,8 +112,9 @@ std::random_device Ball::rd;
 std::mt19937 Ball::gen(rd());
 
 int main()
-{
-    bool mBallSsample = true;
+{   // true  = testing bouncing ball demo (tests the engine)
+    // false = Galaga game (1a)
+    bool mBallSsample = false;
 
     if (mBallSsample)
     {
@@ -124,16 +125,28 @@ int main()
     }
     else
     {
-        CMPUT350::GameEngine engine(768, 1024, "Galaga");
-        auto player = std::make_shared<Player>(CMPUT350::Point2D(768 / 2, 900));
+        // Spec size is 768x1024; the height is reduced to 850 so the whole
+        // window fits on a laptop screen (the spec allows a smaller size).
+        const int kWidth = 768;
+        const int kHeight = 850;
+
+        CMPUT350::GameEngine engine(kWidth, kHeight, "Galaga");
+        auto player = std::make_shared<Player>(CMPUT350::Point2D(kWidth / 2, kHeight - 100));
         engine.AddGameObject(player);
-        engine.AddGameObject(std::make_shared<Stars>(250, CMPUT350::Rect(0, 0, 768, 1024)));
-        for (int x = 0; x < 4; x++)
+        engine.AddGameObject(std::make_shared<Stars>(250, CMPUT350::Rect(0, 0, kWidth, kHeight)));
+        const int kRows = 4;
+        const int kCols = 10;
+        for (int row = 0; row < kRows; row++)
         {
-            auto enemy = std::make_shared<Enemy>(CMPUT350::Point2D(100 + x * 200, 100));
-            engine.AddGameObject(enemy);
+            for (int col = 0; col < kCols; col++)
+            {
+                float x = 60 + col * 72;    // 60 .. 708 across a 768-wide screen
+                float y = 80 + row * 50;
+                engine.AddGameObject(std::make_shared<Enemy>(CMPUT350::Point2D(x, y)));
+            }
         }
         engine.Run();
+
     }
     return 0;
 }

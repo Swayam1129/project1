@@ -25,6 +25,12 @@ public:
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
     const CMPUT350::Rect& GetBounds() override;
+
+private:
+    CMPUT350::Rect mBounds;   // box used for drawing and collisions
+    bool mAlive;              // false once hit by a player bullet
+
+
 };
 
 

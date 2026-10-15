@@ -1,4 +1,5 @@
 #include "DrawContext.h"
+#include <cmath>
 
 namespace CMPUT350 {
 
@@ -8,7 +9,83 @@ namespace CMPUT350 {
  * @param font The font used for text (shared with the game engine).
  */
 DrawContext::DrawContext(std::shared_ptr<sf::RenderWindow> window, std::shared_ptr<sf::Font> font)
-    : mWindow(window), mFont(font) {}
+    : mWindow(window), mFont(font), mOffset(0, 0), mRotation(0), mCos(1), mSin(0) {}
+
+/**
+ * @brief Sets the offset added to every drawn point (the object's location).
+ *        Only the GameEngine calls this, before an object draws.
+ * @param p The offset in screen pixels.
+ */
+void DrawContext::SetContextOffset(Point2D p) { mOffset = p; }
+
+/**
+ * @brief Sets the rotation applied to every drawn point, around the object's
+ *        local (0,0). cos/sin are cached here so drawing doesn't recompute them.
+ * @param rotation Rotation in radians (positive is clockwise on screen).
+ */
+void DrawContext::SetContextRotation(float rotation) {
+    mRotation = rotation;
+    mCos = std::cos(rotation);
+    mSin = std::sin(rotation);
+}
+
+/**
+ * @brief Converts a point from the object's local space to screen space:
+ *        rotate around (0,0), then add the offset.
+ * @param p Point in local coordinates.
+ * @return The point in screen coordinates.
+ */
+Point2D DrawContext::Transform(Point2D p) {
+    return Point2D(p.x * mCos - p.y * mSin + mOffset.x,
+                   p.x * mSin + p.y * mCos + mOffset.y);
+}
+
+/**
+ * @brief Converts a point from screen space back to the object's local space:
+ *        subtract the offset, then rotate by -rotation (the inverse rotation).
+ * @param p Point in screen coordinates.
+ * @return The point in local coordinates.
+ */
+Point2D DrawContext::ReverseTransform(Point2D p) {
+    Point2D q = p - mOffset;
+    return Point2D(q.x * mCos + q.y * mSin,
+                   -q.x * mSin + q.y * mCos);
+}
+
+/**
+ * @brief Transforms all four corners of a local rect to screen space and
+ *        returns the axis-aligned box around them. If the object is rotated,
+ *        this box is larger than the original rect.
+ * @param r Rect in local coordinates.
+ * @return Axis-aligned bounding box in screen coordinates.
+ */
+Rect DrawContext::Transform(Rect r) {
+    Point2D tl = r.topLeft;
+    Rect box(Transform(tl), 0, 0);
+    box |= Transform(tl + Point2D(r.width, 0));
+    box |= Transform(tl + Point2D(0, r.height));
+    box |= Transform(tl + Point2D(r.width, r.height));
+    return box;
+}
+
+/**
+ * @brief Builds a 4-point SFML shape from a local rect, with each corner
+ *        transformed to screen space (so it can be rotated).
+ * @param r Rect in local coordinates.
+ * @return Shape with the 4 transformed corners in order around the rect.
+ */
+sf::ConvexShape DrawContext::MakeQuad(Rect r) {
+    Point2D tl = r.topLeft;
+    Point2D corners[4] = {tl, tl + Point2D(r.width, 0), tl + Point2D(r.width, r.height),
+                          tl + Point2D(0, r.height)};
+    sf::ConvexShape shape;
+    shape.setPointCount(4);
+    for (int i = 0; i < 4; i++) {
+        Point2D c = Transform(corners[i]);
+        shape.setPoint(i, {c.x, c.y});
+    }
+    return shape;
+}
 
 /**
  * @brief Draws text centered on a point.
@@ -20,13 +97,16 @@ DrawContext::DrawContext(std::shared_ptr<sf::RenderWindow> window, std::shared_p
  *
  * The text's origin is moved from its top-left corner to the middle of
  * its bounding box, so that positioning it at p centers it on p.
+ * p is in local space; the text is rotated with the object.
  */
 void DrawContext::DrawCenteredText(const std::string &text, int pixelSize, Point2D p, RGBColor c) {
+    Point2D sp = Transform(p);
     sf::Text t(*mFont, text, static_cast<unsigned int>(pixelSize));
     t.setFillColor(sf::Color(c.r, c.g, c.b));
     sf::FloatRect bounds = t.getLocalBounds();
     t.setOrigin(bounds.position + bounds.size / 2.f);
-    t.setPosition({p.x, p.y});
+    t.setPosition({sp.x, sp.y});
+    t.setRotation(sf::radians(mRotation));
     mWindow->draw(t);
 }
 
@@ -40,11 +120,14 @@ void DrawContext::DrawCenteredText(const std::string &text, int pixelSize, Point
  *
  * Uses the font shared with the game engine and renders the text onto
  * the associated window.
+ * p is in local space; the text is rotated with the object.
  */
 void DrawContext::DrawText(const std::string &text, int pixelSize, Point2D p, RGBColor c) {
+    Point2D sp = Transform(p);
     sf::Text t(*mFont, text, static_cast<unsigned int>(pixelSize));
     t.setFillColor(sf::Color(c.r, c.g, c.b));
-    t.setPosition({p.x, p.y});
+    t.setPosition({sp.x, sp.y});
+    t.setRotation(sf::radians(mRotation));
     mWindow->draw(t);
 }
 
@@ -59,10 +142,12 @@ void DrawContext::DrawText(const std::string &text, int pixelSize, Point2D p, RG
  * rather than their center, so the shape is offset by the radius in both
  * directions so that p ends up at the center. The circle is then rendered
  * onto the associated window.
+ * p is in local space (rotation doesn't change a circle, only where it is).
  */
 void DrawContext::DrawCircle(Point2D p, float radius, RGBColor c) {
+    Point2D sp = Transform(p);
     sf::CircleShape shape(radius);
-    shape.setPosition({p.x - radius, p.y - radius});
+    shape.setPosition({sp.x - radius, sp.y - radius});
     shape.setFillColor(sf::Color(c.r, c.g, c.b));
     mWindow->draw(shape);
 }
@@ -74,18 +159,13 @@ void DrawContext::DrawCircle(Point2D p, float radius, RGBColor c) {
  *          width and height in pixels.
  * @param c The fill color of the rectangle, specified as an RGBColor object.
  *
- * This function creates an SFML rectangle shape of the rect's size,
- * positions it at the rect's top-left corner, fills it with the given
- * color and renders it onto the associated window.
+ * The rect is in local space. Its 4 corners are transformed, so it rotates with the object.
  */
 void DrawContext::DrawRect(Rect r, RGBColor c) {
-    sf::RectangleShape shape({r.width, r.height});
-    shape.setPosition({r.topLeft.x, r.topLeft.y});
+    sf::ConvexShape shape = MakeQuad(r);
     shape.setFillColor(sf::Color(c.r, c.g, c.b));
     mWindow->draw(shape);
 }
-
-
 
 /**
  * @brief Draws the outline of a rectangle (no fill) with a specified
@@ -95,19 +175,16 @@ void DrawContext::DrawRect(Rect r, RGBColor c) {
  * @param width The thickness of the outline in pixels.
  * @param c The color of the outline, specified as an RGBColor object.
  *
- * This function creates an SFML rectangle shape with a transparent fill
- * and a colored outline. It is useful for debugging, e.g. drawing an
- * object's collision bounds on top of it.
+ * The rect is in local space. Its 4 corners are transformed, so it rotates with the object.
  */
 void DrawContext::FrameRect(Rect r, float width, RGBColor c) {
-
-    sf::RectangleShape shape({r.width, r.height});
-    shape.setPosition({r.topLeft.x, r.topLeft.y});
+    sf::ConvexShape shape = MakeQuad(r);
     shape.setFillColor(sf::Color::Transparent);
     shape.setOutlineThickness(width);
     shape.setOutlineColor(sf::Color(c.r, c.g, c.b));
     mWindow->draw(shape);
 }
+
 /**
  * @brief Draws a line between two points with a specified width and color.
  *
@@ -120,8 +197,11 @@ void DrawContext::FrameRect(Rect r, float width, RGBColor c) {
  * 4-cornered polygon (sf::ConvexShape). The direction from 'from' to 'to'
  * is normalized and rotated 90 degrees to get a sideways vector of length
  * width/2; the four corners are each endpoint offset by +/- that vector.
+ * from/to are in local space and are transformed before drawing.
  */
 void DrawContext::DrawLine(Point2D from, Point2D to, float width, RGBColor c) {
+    from = Transform(from);
+    to = Transform(to);
     Point2D dir = to - from;
     dir.Normalize();                              // unit direction of the line
     Point2D side(-dir.y, dir.x);                  // rotate 90 degrees

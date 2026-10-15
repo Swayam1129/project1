@@ -41,8 +41,20 @@ public:
     int GetWindowHeight();
 
 private:
+    friend class GameEngine;
+    void SetContextOffset(Point2D p);
+    void SetContextRotation(float rotation);
+    Point2D Transform(Point2D p);
+    Point2D ReverseTransform(Point2D p);
+    Rect Transform(Rect r);  // Rotates rectangle and computes new bounding box after rotation
+
+    sf::ConvexShape MakeQuad(Rect r);  // rect corners in screen space as a 4-point shape
+
     std::shared_ptr<sf::RenderWindow> mWindow;
     std::shared_ptr<sf::Font> mFont;
+    Point2D mOffset;        // object location added to every point
+    float mRotation;        // object rotation in radians
+    float mCos, mSin;       // cached cos/sin of mRotation
 };
 
 }  // namespace CMPUT350

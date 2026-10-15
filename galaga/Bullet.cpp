@@ -1,5 +1,6 @@
 #include "Bullet.h"
 #include "Enemy.h"
+#include "Player.h"
 /**
  * @brief Creates a bullet.
  * @param location Starting position in pixels.
@@ -74,14 +75,16 @@ void Bullet::RenderForeground(CMPUT350::GameContext* context)
 }
 
 /**
- * @brief Called by the engine when the bullet overlaps another collision object.
- *        A player bullet dies when it hits an Enemy. It ignores the player
- *        that fired it, so it does not explode when it spawns.
+ * @brief Called by the engine when the bullet touches another collision object.
+ *        A player bullet stops on an Enemy; an enemy bullet stops on the Player.
+ *        Bullets ignore everything else (including the ship that fired them).
  * @param obj The object collided with.
  */
 void Bullet::CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj)
 {
-    if (mPlayer && std::dynamic_pointer_cast<Enemy>(obj) != nullptr)
+    bool hitEnemy = std::dynamic_pointer_cast<Enemy>(obj) != nullptr;
+    bool hitPlayer = std::dynamic_pointer_cast<Player>(obj) != nullptr;
+    if ((mPlayer && hitEnemy) || (!mPlayer && hitPlayer))
     {
         mAlive = false;
     }

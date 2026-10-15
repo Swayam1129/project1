@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "GameContext.h"
 #include "GameObject.h"
@@ -40,7 +41,10 @@ private:
     int FramesInState(CMPUT350::GameContext* context) const;
     void StartGame(CMPUT350::GameContext* context);
     void SpawnPlayer(CMPUT350::GameContext* context);
-    void SpawnWaves(CMPUT350::GameContext* context);
+    void SpawnWaveEnemies(CMPUT350::GameContext* context);
+    std::vector<CMPUT350::Point2D> EntryPath(int wave, CMPUT350::Point2D slot) const;
+    bool AllEnemiesInFormation(CMPUT350::GameContext* context) const;
+    void LaunchAttack(CMPUT350::GameContext* context);
     void ClearGameObjects(CMPUT350::GameContext* context);
 
     int mWidth, mHeight;           // window size in pixels
@@ -51,6 +55,8 @@ private:
     int mLives;                    // ships left, including the one in play
     int mLevel;                    // stage number, starting at 1
     int mEnemiesAlive;             // enemies spawned and not yet destroyed
+    int mEnemiesSpawned;           // enemies added so far this stage (0..40)
+    int mAttackCounter;            // picks the next attacker deterministically
     bool mStartRequested;          // "Start" received since the last Update
     bool mPlayerDied;              // "PlayerDied" received since the last Update
     std::weak_ptr<Player> mPlayer; // the ship in play (owned by the engine)

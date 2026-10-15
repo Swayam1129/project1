@@ -13,10 +13,19 @@ static const int kRespawnFrames = 90;
 static const int kGameOverFrames = 150;
 static const int kStartingLives = 3;
 
+// Waves: 5 waves of 8 enemies. Each wave fills one row of the formation.
+static const int kNumWaves = 5;
+static const int kEnemiesPerWave = 8;
+static const int kWaveGapFrames = 75;      // between the start of two waves
+static const int kEnemyGapFrames = 6;      // between two enemies of the same wave
+static const int kWaveRows[kNumWaves] = {3, 4, 1, 2, 0};   // bees first, bosses last
+
 // Points for each "enemy destroyed" notification. Galaga registers for every
 // name in this table, so a new enemy type only needs a new row here.
 static const std::unordered_map<std::string, int> kEnemyPoints = {
-    {"EnemyKilled", 50},
+    {"BeeKilled", 50},          {"BeeKilledAttacking", 100},
+    {"ButterflyKilled", 80},    {"ButterflyKilledAttacking", 160},
+    {"BossKilled", 150},        {"BossKilledAttacking", 400},
 };
 
 /**
@@ -27,7 +36,7 @@ static const std::unordered_map<std::string, int> kEnemyPoints = {
 Galaga::Galaga(int width, int height)
     : mWidth(width), mHeight(height), mState(State::kWaitingForCoin), mStateStartFrame(0),
       mCredits(0), mScore(0), mHighScore(0), mLives(0), mLevel(1), mEnemiesAlive(0),
-      mStartRequested(false), mPlayerDied(false)
+      mEnemiesSpawned(0), mAttackCounter(0), mStartRequested(false), mPlayerDied(false)
 {
 }
 
@@ -116,14 +125,29 @@ void Galaga::Update(CMPUT350::GameContext* context)
         case State::kStartup:
             if (FramesInState(context) >= kStartupFrames)
             {
-                SpawnWaves(context);
+                mEnemiesSpawned = 0;
                 SetState(State::kWaves, context);
             }
             break;
 
         case State::kWaves:
-            // All enemies are placed at once for now; flying in comes with the Enemy classes
-            SetState(State::kPlay, context);
+            SpawnWaveEnemies(context);
+            if (mPlayerDied)
+            {
+                mPlayerDied = false;
+                mLives--;   // keep letting the waves come in; respawn afterwards
+            }
+            if (mEnemiesSpawned == kNumWaves * kEnemiesPerWave && AllEnemiesInFormation(context))
+            {
+                if (mLives <= 0)
+                {
+                    SetState(State::kGameOver, context);
+                }
+                else
+                {
+                    SetState(mPlayer.expired() ? State::kRespawn : State::kPlay, context);
+                }
+            }
             break;
 
         case State::kPlay:
@@ -138,10 +162,20 @@ void Galaga::Update(CMPUT350::GameContext* context)
                 mLevel++;
                 SetState(State::kStartup, context);   // next stage
             }
+            else
+            {
+                // Attacks get more frequent each stage
+                int interval = std::max(30, 90 - 10 * (mLevel - 1));
+                if (FramesInState(context) % interval == interval - 1)
+                {
+                    LaunchAttack(context);
+                }
+            }
             break;
 
         case State::kRespawn:
-            if (FramesInState(context) >= kRespawnFrames)
+            // Wait for attackers to return home before bringing in a new ship
+            if (FramesInState(context) >= kRespawnFrames && AllEnemiesInFormation(context))
             {
                 SpawnPlayer(context);
                 SetState(State::kPlay, context);
@@ -212,23 +246,116 @@ void Galaga::SpawnPlayer(CMPUT350::GameContext* context)
 }
 
 /**
- * @brief Adds the enemies for this stage: 5 rows of 8 in formation.
- * @param context Game context (used to add enemies to the engine).
+ * @brief Adds the enemies whose time has come. Enemy n (0..39) belongs to
+ *        wave n / 8 and appears kWaveGapFrames per wave plus kEnemyGapFrames
+ *        per place in the wave after the waves start. Each wave fills one
+ *        row: row 0 Bosses, rows 1-2 Butterflies, rows 3-4 Bees.
+ * @param context Game context (current frame, adding enemies).
  */
-void Galaga::SpawnWaves(CMPUT350::GameContext* context)
+void Galaga::SpawnWaveEnemies(CMPUT350::GameContext* context)
 {
-    const int kRows = 5;
-    const int kCols = 8;
-    for (int row = 0; row < kRows; row++)
+    while (mEnemiesSpawned < kNumWaves * kEnemiesPerWave)
     {
-        for (int col = 0; col < kCols; col++)
+        int wave = mEnemiesSpawned / kEnemiesPerWave;
+        int col = mEnemiesSpawned % kEnemiesPerWave;
+        if (FramesInState(context) < wave * kWaveGapFrames + col * kEnemyGapFrames)
         {
-            float x = mWidth / 2.0f + (col - (kCols - 1) / 2.0f) * 60;   // centered columns, 60 px apart
-            float y = 100 + row * 45;
-            context->mEngineView->AddGameObject(std::make_shared<Enemy>(CMPUT350::Point2D(x, y)));
-            mEnemiesAlive++;
+            return;   // not time for this one yet
+        }
+
+        int row = kWaveRows[wave];
+        CMPUT350::Point2D slot(mWidth / 2.0f + (col - (kEnemiesPerWave - 1) / 2.0f) * 60, 100 + row * 45.0f);
+        std::vector<CMPUT350::Point2D> path = EntryPath(wave, slot);
+
+        std::shared_ptr<Enemy> enemy;
+        if (row == 0)
+        {
+            enemy = std::make_shared<Boss>(slot, path);
+        }
+        else if (row <= 2)
+        {
+            enemy = std::make_shared<Butterfly>(slot, path);
+        }
+        else
+        {
+            enemy = std::make_shared<Bee>(slot, path);
+        }
+        context->mEngineView->AddGameObject(enemy);
+        mEnemiesSpawned++;
+        mEnemiesAlive++;
+    }
+}
+
+/**
+ * @brief Bezier control points for flying onto the screen: in from the top
+ *        on one side, a sweeping curve across the lower screen, then up into
+ *        the formation slot. Even waves come from the left, odd from the right.
+ *        Two cubic segments (7 points); points 2, 3, 4 are on one line so the
+ *        two segments join smoothly.
+ * @param wave Wave number (0..4).
+ * @param slot The enemy's formation slot (where the path ends).
+ * @return 7 control points.
+ */
+std::vector<CMPUT350::Point2D> Galaga::EntryPath(int wave, CMPUT350::Point2D slot) const
+{
+    float cx = mWidth / 2.0f;
+    float side = (wave % 2 == 0) ? -1.0f : 1.0f;
+    return {CMPUT350::Point2D(cx + side * 150, -40),
+            CMPUT350::Point2D(cx + side * 150, 250),
+            CMPUT350::Point2D(cx - side * 250, 500),
+            CMPUT350::Point2D(cx - side * 100, 550),
+            CMPUT350::Point2D(cx + side * 50, 600),
+            CMPUT350::Point2D(slot.x, slot.y + 250),
+            slot};
+}
+
+/**
+ * @brief Whether every enemy in the engine is resting in its formation slot
+ *        (none entering, joining or attacking). Uses the engine's iterator.
+ * @param context Game context (engine view).
+ * @return true if no enemy is moving.
+ */
+bool Galaga::AllEnemiesInFormation(CMPUT350::GameContext* context) const
+{
+    for (const auto &obj : *context->mEngineView)
+    {
+        auto enemy = std::dynamic_pointer_cast<Enemy>(obj);
+        if (enemy != nullptr && enemy->IsAlive() && !enemy->IsInFormation())
+        {
+            return false;
         }
     }
+    return true;
+}
+
+/**
+ * @brief Sends one enemy from the formation to attack the player. Picks
+ *        deterministically: the enemies in formation are listed in engine
+ *        order and the counter (advanced by 3 each time) chooses one.
+ * @param context Game context (engine view).
+ */
+void Galaga::LaunchAttack(CMPUT350::GameContext* context)
+{
+    std::shared_ptr<Player> player = mPlayer.lock();
+    if (player == nullptr)
+    {
+        return;
+    }
+    std::vector<std::shared_ptr<Enemy>> candidates;
+    for (const auto &obj : *context->mEngineView)
+    {
+        auto enemy = std::dynamic_pointer_cast<Enemy>(obj);
+        if (enemy != nullptr && enemy->IsAlive() && enemy->IsInFormation())
+        {
+            candidates.push_back(enemy);
+        }
+    }
+    if (candidates.empty())
+    {
+        return;
+    }
+    candidates[mAttackCounter % candidates.size()]->Attack(context, player->GetLocation());
+    mAttackCounter += 3;
 }
 
 /**

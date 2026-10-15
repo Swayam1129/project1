@@ -34,6 +34,7 @@ private:
     CMPUT350::Rect mBounds;               // 40x40 box around (0,0), local space
     std::vector<CMPUT350::Shape> mShapes; // body, wings, nose in local space
     bool mAlive;
+    bool mDied = false;                   // destroyed in a collision (reported in LateUpdate)
     float mRotation = 0;                  // always 0 in play; change to test rotation
     std::weak_ptr<Bullet> mBullets[2];    // watches (doesn't own) up to 2 bullets
     bool mMoveLeft = false;               // true while a MoveLeft key is held

@@ -2,6 +2,7 @@
 #include <cassert>
 #include "Player.h"
 #include "Bullet.h"
+#include "Enemy.h"
 #include "GameContext.h"
 
 static const float kPlayerSize = 40.0f;     // ship is about 40x40
@@ -82,10 +83,18 @@ void Player::Update(CMPUT350::GameContext* context)
 }
 
 /**
- * @brief No late update needed for the player.
+ * @brief Tells Galaga (through the NotificationManager) that the ship was
+ *        destroyed, so it can take a life and respawn or end the game.
  * @param context Game context.
  */
-void Player::LateUpdate(CMPUT350::GameContext* context){}
+void Player::LateUpdate(CMPUT350::GameContext* context)
+{
+    if (mDied)
+    {
+        mDied = false;   // report only once
+        context->mNotificationManager->Notify("PlayerDied");
+    }
+}
 
 /**
  * @brief Handles keyboard notifications. Only records what was asked;
@@ -159,10 +168,21 @@ float Player::GetRotation() const
 }
 
 /**
- * @brief Bullets do not hurt the player in 1a, so collisions are ignored.
+ * @brief Called by the engine on a collision. An enemy bullet or an enemy
+ *        destroys the ship; the player's own bullets are ignored.
  * @param obj The object collided with.
  */
-void Player::CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj){}
+void Player::CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj)
+{
+    std::shared_ptr<Bullet> bullet = std::dynamic_pointer_cast<Bullet>(obj);
+    bool enemyBullet = bullet != nullptr && !bullet->IsPlayerBullet();
+    bool enemy = std::dynamic_pointer_cast<Enemy>(obj) != nullptr;
+    if (mAlive && (enemyBullet || enemy))
+    {
+        mAlive = false;   // engine removes us at the start of next frame
+        mDied = true;     // Galaga is told in LateUpdate (we have no context here)
+    }
+}
 
 /**
  * @brief Marks the player as dead.

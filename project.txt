@@ -1,0 +1,185 @@
+CMPUT 350 Project 1b: Advanced Object-Oriented Vector Engine + Galaga
+=====================================================================
+
+Team: Swayam Sagar
+
+Build and run (CMake 3.28+, as on the lab machines):
+    cmake --preset debug
+    cmake --build build
+    ./build/Project1
+
+Controls:
+    5           insert coin (MAME convention)
+    1           start game (needs a credit)
+    A / Left    move left
+    D / Right   move right
+    Space       fire (at most 2 player bullets on screen)
+
+
+1. Overview
+-----------
+The project has two parts: a small 2D game engine (engine/) built on SFML,
+and a Galaga clone (galaga/) written only against the engine's interfaces.
+main.cpp creates the engine, adds one Galaga object, and calls Run(); the
+Galaga object creates and removes every other object in the game.
+
+Each frame the engine: (1) removes dead objects, (2) adds and initializes new
+objects, (3) turns SFML key press/release events into notifications,
+(4) calls Update, (5) runs collision detection, (6) calls LateUpdate,
+(7) renders backgrounds, (8) renders foregrounds, (9) renders the UI,
+(10) displays the frame and advances the frame counter.
+
+
+2. Engine implementation
+------------------------
+MathUtil.h
+  Line: Length, ClosestPoint (projection clamped to the segment) and Crosses
+  (segment intersection using 2D cross products; parallel lines return false).
+  Circle and Line stream operators, Rect |= Line.
+
+Bezier.h/.cpp
+  Chained cubic Bezier curves. With k*3+1 control points t runs from 0 to k;
+  the whole part of t picks the segment and the fraction is the position in
+  it. GetPoint uses the cubic formula, GetSlope its derivative. t is clamped
+  to the valid range. Static and member versions share one implementation.
+
+NotificationManager.h/.cpp
+  Map from message name to a list of weak_ptr listeners, so the manager never
+  keeps an object alive. Notify removes listeners that have been destroyed or
+  are no longer alive, then delivers the message immediately. It copies the
+  listener list before delivering, so a listener can register/unregister
+  while handling a message. Duplicate registrations are ignored.
+
+EngineView / GameEngine
+  Key -> notification tables for key down and key up (several keys can map to
+  one message, e.g. A and Left both send "MoveLeft"). Key repeat is turned
+  off so each physical press sends one message. begin/end/cbegin/cend return
+  the const iterators of the engine's internal std::vector of objects.
+
+GameContext
+  ScreenContext (gameplay, transformed per object), GUIContext (never
+  transformed), CurrObject (weak_ptr to the object being called; the engine
+  sets it before Initialize/Update/LateUpdate so objects can register
+  themselves and give bullets a parent), the NotificationManager and the
+  current frame number.
+
+DrawContext
+  Private (friend GameEngine) offset/rotation. Transform rotates around the
+  object's local (0,0) and adds the offset; ReverseTransform subtracts the
+  offset and rotates by -angle (the inverse rotation). cos/sin are cached
+  when the rotation is set. Rects are drawn as 4 transformed corners so they
+  rotate; text also rotates. Transform(Rect) returns the axis-aligned box
+  around the rotated rect.
+
+Collisions (GameEngine::Run)
+  - Every collision object's bounds and shapes are converted to screen space
+    once per frame (not once per pair).
+  - Broad phase: screen-space bounding boxes must overlap.
+  - Narrow phase: every shape of one object against every shape of the other.
+      line-line:   Line::Crosses
+      line-circle: smallest root of |p1 + t*d - c|^2 = r^2 (t = 0 if the line
+                   starts inside)
+      line-rect:   t = 0 if the start is inside, else the earliest crossing
+                   of the 4 edges
+      circle-circle, rect-rect, circle-rect (closest point of the rect)
+  - Lines are directed: when a line is involved, the contact point with the
+    smallest t (closest to p1) over all shape pairs is used. It is converted
+    to each object's local space with ReverseTransform and passed to
+    CollisionEnter(obj, point). Pairs without a line get CollisionEnter(obj).
+  - Each pair is checked once (j > i).
+
+
+3. Game implementation
+----------------------
+Galaga state machine (Galaga.h/.cpp):
+
+  WaitingForCoin  Title screen. "5" adds a credit, "1" starts if there is one.
+       |
+       v
+  Startup         "STAGE n" for 90 frames; the player ship appears (first stage).
+       |
+       v
+  Waves           5 waves of 8 enemies fly in on Bezier entry paths, one
+       |          enemy every 6 frames and one wave every 75 frames, each
+       |          wave filling one formation row. When all 40 have been
+       |          spawned and every enemy is in formation, go to Play. If the
+       |          player dies here, waves keep coming and the player respawns
+       |          afterwards.
+       v
+  Play            Every 90 frames (10 fewer per stage, minimum 30) one enemy
+       |          in formation is sent to attack. All enemies destroyed ->
+       |          next stage (Startup). Player destroyed -> Respawn, or
+       |          GameOver if no ships are left.
+       v
+  Respawn         "READY / SHIPS LEFT n"; waits 90 frames and until every
+       |          attacker is back in formation, then a new ship -> Play.
+       v
+  GameOver        "GAME OVER" for 150 frames, then all objects except the
+                  stars are killed (using the engine iterator) -> WaitingForCoin.
+
+  Galaga installs the key notifications in its Initialize. Enemies and the
+  player report their deaths with notifications ("<Type>Killed",
+  "<Type>KilledAttacking", "PlayerDied"); Galaga keeps a table of message ->
+  points, registers for every name in it, and keeps score, high score,
+  lives and the number of enemies alive. Attackers are chosen
+  deterministically: enemies in formation are listed using the engine's
+  iterator and the next one is list[counter % size], with the counter
+  advancing by 3 each time. The GUI (score, high score, ships, stage, state
+  text) is drawn in RenderUI on the GUI context.
+
+Enemy.h/.cpp
+  Enemy is an abstract base class with the shared behaviour:
+    Entering -> Joining -> InFormation -> Attacking -> Joining -> ...
+  - Paths are followed at constant speed: each frame t advances by
+    speed / |slope|, since |slope| is the number of pixels one unit of t
+    covers at that point.
+  - The enemy faces its direction of travel (atan2 of the slope + 90 deg).
+  - The formation sways with sin(currentFrame), so all enemies move together.
+  - Attack(context, target) is pure virtual and returns false if the enemy
+    is not in formation.
+  - An attack that leaves the bottom of the screen reappears at the top.
+  - Enemies only collide with the player and player bullets.
+  Three types (all in Enemy.h/.cpp):
+    Bee        1 health, yellow/blue, hop-and-dive path, fires 1 bullet
+    Butterfly  1 health, red/white, S-curve path (2 segments), fires 2
+    Boss       2 health, green -> magenta after a hit, loops around the
+               player and leaves off the top, fires a 3-bullet spread
+  Points (formation / attacking): Bee 50/100, Butterfly 80/160, Boss 150/400.
+
+Player.h/.cpp
+  Registers for MoveLeft/StopLeft/MoveRight/StopRight/Fire in Initialize and
+  moves 8 px per frame while a move key is held, clamped to the screen.
+  Draws in local space around (0,0); collision shapes are the body and wings
+  (rects) and the nose (circle). Destroyed by enemy bullets or enemies.
+
+Bullet.h/.cpp
+  Collision shape is a directed line from last frame's position to the
+  current one, so fast bullets can't skip over objects. On a hit it stops at
+  the engine's contact point (the one with the largest y if there are
+  several) and draws a circle there for 6 frames, with no collision shapes
+  while exploding. Player bullets are yellow, enemy bullets orange. Each
+  bullet holds a weak_ptr to the object that fired it and dies when that
+  object is destroyed.
+
+
+4. Design decisions and changes to the given API
+------------------------------------------------
+- Window is 768x850 instead of 768x1024 so it fits on a laptop screen (one
+  constant in main.cpp).
+- Keyboard.h was not in our template, so keys are SFML scancodes
+  (sf::Keyboard::Scan::A etc.) cast to int for InstallKeyDown/UpNotification.
+- Added Bezier::GetMaxT() (number of segments) so enemies know where a path ends.
+- GameContext members have default values; EngineView has a virtual destructor.
+- Private helpers added: DrawContext::MakeQuad, GameEngine::SendKeyNotifications,
+  GameEngine::ToWorld.
+- Stars gained GetLocation/GetRotation (returning (0,0) and 0) because they
+  are now pure virtual in GraphicsObject; otherwise Stars is unchanged.
+- Rects are axis-aligned (per the spec), so for a rotated object its rect
+  collision shapes become the bounding box of the rotated rect.
+- A contact point is only provided when a line is involved; circle/rect
+  pairs call the one-argument CollisionEnter.
+- Objects report events that happen in CollisionEnter (which has no context)
+  by setting a flag and sending the notification in LateUpdate.
+- The bouncing-ball engine demo from 1a was removed from main.cpp so main only
+  adds the Galaga object, as the spec requires.
+

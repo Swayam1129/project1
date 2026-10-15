@@ -1,29 +1,36 @@
-# CMPUT 350 Project 1a: Game Engine + Galaga
+# CMPUT 350 Project 1: Game Engine + Galaga
 
-**Team:** Swayam, 
+**Team:** Swayam Sagar, [teammate name(s)]
+
+Part 1a is tagged `project1a-final`. The current `main` branch is Part 1b.
+See `project.txt` for the full description of the implementation, the
+Galaga state machine, API changes, team contributions and AI usage.
 
 ## How to build and run
     cmake --preset debug
     cmake --build build
     ./build/Project1
 
-In `galaga/main.cpp`, set `mBallSsample = true` to run the bouncing-ball
-engine demo, or `false` to run Galaga.
-
-**Controls:** A / D to move, Space to fire (max 2 bullets on screen).
+## Controls
+- **5** insert coin, **1** start
+- **A / Left**, **D / Right** move
+- **Space** fire (max 2 bullets on screen)
 
 ## Notes for TA
-- **Window size:** Galaga runs at 768x850 instead of 768x1024 because 1024 px
-  does not fit my laptop screen (the spec allows a smaller size). The
-  height is a single constant (`kHeight`) in `main.cpp`.
-- **Template bug fixed:** `Rect(float left, float top, float width, float height)`
-  passed `(top, left)` to `Point2D`, swapping x and y. Fixed to `(left, top)`.
-- **Added missing spec function:** `Point2D::Cross(Point2D b) const` was in the
-  spec but not in the template.
-- `Line` functions and `Rect::operator|=(const Line&)` are left for Part 1b.
-- Removal of dead objects uses swap-and-pop (O(1) per removal, no gaps);
-  object order is not preserved, as allowed by the spec.
+- **Window size:** 768x850 instead of 768x1024 so it fits on a laptop screen
+  (the spec allows a smaller size). It is one constant (`kHeight`) in `main.cpp`.
+- **Template fixes from 1a:** `Rect(float left, float top, float width, float height)`
+  passed `(top, left)` to `Point2D`; fixed to `(left, top)`. Added the missing
+  `Point2D::Cross(Point2D b) const`.
 
 ## AI usage disclosure
-
-I did not use AI
+Part 1a: no AI used. 
+Part 1b: Other AI use (no code):
+  We used Claude during Part [1b] only to understand the assignment
+  and talk through possible approaches before coding. It did not write
+  any code. 
+    - “Break this assignment into steps for me.”
+    - “Which part should I start first to make it efficient?”
+    - “What’s the best way to remove dead objects from a vector?"
+    - “Why are x and y swapped in this Rect constructor?”
+  I chose the approach and wrote the code myselves.

@@ -8,6 +8,7 @@ class GameEngine;
 #include "EngineView.h"
 #include "GameObject.h"
 #include "MathUtil.h"
+#include "CollisionObject.h"
 #include "NotificationManager.h"
 #include <SFML/Graphics.hpp>
 #include <memory>
@@ -43,6 +44,7 @@ private:
     using tKeyTable = std::unordered_map<int, std::vector<std::string>>;
 
     void SendKeyNotifications(const tKeyTable &table, int key);
+    Shape ToWorld(const Shape &s);   // local shape -> screen space (uses current DrawContext transform)
 
     std::shared_ptr<sf::RenderWindow> mWindow;     // shared with DrawContext
     std::shared_ptr<sf::Font> mFont;               // shared with DrawContext

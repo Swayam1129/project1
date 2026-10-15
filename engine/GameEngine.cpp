@@ -4,6 +4,8 @@
 #include "GraphicsObject.h"
 #include "CollisionObject.h"
 
+#include <algorithm>
+#include <cmath>
 
 namespace CMPUT350 {
 #include "FontData.h"
@@ -103,6 +105,183 @@ GameEngine::const_iterator GameEngine::begin() const { return mGameObjects.cbegi
 /** @return Same as cend(); allows range-based for loops over the engine. */
 GameEngine::const_iterator GameEngine::end() const { return mGameObjects.cend(); }
 
+// Narrow-phase collision helpers. All shapes here are already in screen space.
+
+/**
+ * @brief How far along a line a point lies: 0 at p1, 1 at p2.
+ * @param l The line.
+ * @param p A point on (or near) the line.
+ * @return The projection of p onto the line, as a fraction of its length.
+ */
+static float LineParam(const Line &l, const Point2D &p) {
+    Point2D d = l.p2 - l.p1;
+    float lenSq = d * d;
+    if (lenSq == 0) {
+        return 0;
+    }
+    return ((p - l.p1) * d) / lenSq;
+}
+
+/**
+ * @brief Finds where a directed line first touches a circle.
+ *        Solves |p1 + t*d - c|^2 = r^2 for the smallest t in [0,1].
+ * @param l The directed line (p1 -> p2).
+ * @param c The circle.
+ * @param t Set to the first contact position along the line (0..1).
+ * @return true if the line touches the circle.
+ */
+static bool LineHitsCircle(const Line &l, const Circle &c, float &t) {
+    Point2D d = l.p2 - l.p1;
+    Point2D f = l.p1 - c.center;
+    float rSq = c.radius * c.radius;
+    if (f * f <= rSq) {
+        t = 0;                        // starts inside the circle
+        return true;
+    }
+    float a = d * d;
+    if (a == 0) {
+        return false;                 // zero-length line outside the circle
+    }
+    float b = 2 * (f * d);
+    float disc = b * b - 4 * a * (f * f - rSq);
+    if (disc < 0) {
+        return false;                 // the infinite line misses the circle
+    }
+    t = (-b - std::sqrt(disc)) / (2 * a);   // entry point (smaller root)
+    return t >= 0 && t <= 1;
+}
+
+/**
+ * @brief Finds where a directed line first touches an axis-aligned rect:
+ *        either its start point is inside, or the earliest crossing of an edge.
+ * @param l The directed line (p1 -> p2).
+ * @param r The rect.
+ * @param t Set to the first contact position along the line (0..1).
+ * @return true if the line touches the rect.
+ */
+static bool LineHitsRect(const Line &l, const Rect &r, float &t) {
+    if (r.IsInside(l.p1)) {
+        t = 0;
+        return true;
+    }
+    Point2D tl = r.topLeft;
+    Point2D tr = tl + Point2D(r.width, 0);
+    Point2D bl = tl + Point2D(0, r.height);
+    Point2D br = tl + Point2D(r.width, r.height);
+    Line edges[4] = {Line(tl, tr), Line(tr, br), Line(br, bl), Line(bl, tl)};
+
+    bool found = false;
+    for (const Line &e : edges) {
+        Point2D crossing;
+        if (l.Crosses(e, crossing)) {
+            float edgeT = LineParam(l, crossing);
+            if (!found || edgeT < t) {
+                t = edgeT;
+                found = true;
+            }
+        }
+    }
+    return found;
+}
+
+/**
+ * @brief Finds where a directed line first touches another shape.
+ * @param l The directed line.
+ * @param other Any shape.
+ * @param t Set to the first contact position along l (0..1).
+ * @return true if they touch.
+ */
+static bool LineFirstHit(const Line &l, const Shape &other, float &t) {
+    switch (other.t) {
+        case ShapeType::kLine: {
+            Point2D crossing;
+            if (l.Crosses(other.shape.line, crossing)) {
+                t = LineParam(l, crossing);
+                return true;
+            }
+            return false;
+        }
+        case ShapeType::kCircle:
+            return LineHitsCircle(l, other.shape.circle, t);
+        case ShapeType::kRect:
+            return LineHitsRect(l, other.shape.rect, t);
+    }
+    return false;
+}
+
+/**
+ * @brief Whether a circle and an axis-aligned rect overlap: the point of the
+ *        rect closest to the circle's center must be within the radius.
+ */
+static bool CircleHitsRect(const Circle &c, const Rect &r) {
+    Point2D closest(std::clamp(c.center.x, r.topLeft.x, r.topLeft.x + r.width),
+                    std::clamp(c.center.y, r.topLeft.y, r.topLeft.y + r.height));
+    return c.center.Distance(closest) <= c.radius;
+}
+
+/**
+ * @brief Whether two axis-aligned rects overlap (touching edges count).
+ */
+static bool RectsOverlap(const Rect &a, const Rect &b) {
+    return a.topLeft.x <= b.topLeft.x + b.width &&
+           b.topLeft.x <= a.topLeft.x + a.width &&
+           a.topLeft.y <= b.topLeft.y + b.height &&
+           b.topLeft.y <= a.topLeft.y + a.height;
+}
+
+/**
+ * @brief Tests two screen-space shapes. If either one is a line, also finds
+ *        the first point along that line where they touch (lines are directed).
+ *        Circle/rect pairs have no single contact point.
+ * @param a First shape.
+ * @param b Second shape.
+ * @param hasPoint Set to true if a contact point was found (a line was involved).
+ * @param point Set to the contact point in screen space (if hasPoint).
+ * @param t Set to how far along the line the contact is, 0..1 (if hasPoint).
+ * @return true if the shapes touch.
+ */
+static bool ShapesCollide(const Shape &a, const Shape &b, bool &hasPoint, Point2D &point, float &t) {
+    hasPoint = false;
+    if (a.t == ShapeType::kLine || b.t == ShapeType::kLine) {
+        const Line &l = (a.t == ShapeType::kLine) ? a.shape.line : b.shape.line;
+        const Shape &other = (a.t == ShapeType::kLine) ? b : a;
+        if (!LineFirstHit(l, other, t)) {
+            return false;
+        }
+        point = l.p1 + (l.p2 - l.p1) * t;
+        hasPoint = true;
+        return true;
+    }
+    if (a.t == ShapeType::kCircle && b.t == ShapeType::kCircle) {
+        return a.shape.circle.center.Distance(b.shape.circle.center) <= a.shape.circle.radius + b.shape.circle.radius;
+    }
+    if (a.t == ShapeType::kRect && b.t == ShapeType::kRect) {
+        return RectsOverlap(a.shape.rect, b.shape.rect);
+    }
+    if (a.t == ShapeType::kCircle) {
+        return CircleHitsRect(a.shape.circle, b.shape.rect);
+    }
+    return CircleHitsRect(b.shape.circle, a.shape.rect);
+}
+
+/**
+ * @brief Converts a shape from an object's local space to screen space using
+ *        the offset/rotation currently set on the draw context. Rects become
+ *        the axis-aligned box around the rotated rect.
+ * @param s Shape in local space.
+ * @return The same shape in screen space.
+ */
+Shape GameEngine::ToWorld(const Shape &s) {
+    switch (s.t) {
+        case ShapeType::kLine:
+            return Shape(Line(mDrawContext->Transform(s.shape.line.p1), mDrawContext->Transform(s.shape.line.p2)));
+        case ShapeType::kCircle:
+            return Shape(Circle(mDrawContext->Transform(s.shape.circle.center), s.shape.circle.radius));
+        case ShapeType::kRect:
+            return Shape(mDrawContext->Transform(s.shape.rect));
+    }
+    return s;
+}
 /**
  * @brief Gives control to the game engine. Runs the game loop until the
  *        window is closed.
@@ -159,9 +338,8 @@ void GameEngine::Run() {
             context.CurrObject = obj;
             obj->Update(&context);
         }
-
-
-        // 5. Process collisions between collision objects (AABB overlap)
+        
+        // 5. Process collisions between collision objects
         //    Collect collision objects once per frame using RTTI
         std::vector<std::shared_ptr<CollisionObject>> colliders;
         for (auto &obj : mGameObjects) {
@@ -170,29 +348,66 @@ void GameEngine::Run() {
                 colliders.push_back(c);
             }
         }
-        //    Each object's local bounds -> screen-space box, computed once per
-        //    object per frame (not once per pair)
+        //    Convert each object's local bounds and shapes to screen space once
+        //    per frame (not once per pair)
         std::vector<Rect> worldBounds;
+        std::vector<std::vector<Shape>> worldShapes;
         for (auto &c : colliders) {
             mDrawContext->SetContextOffset(c->GetLocation());
             mDrawContext->SetContextRotation(c->GetRotation());
             worldBounds.push_back(mDrawContext->Transform(c->GetBounds()));
+            std::vector<Shape> shapes;
+            for (const Shape &s : c->GetShapes()) {
+                shapes.push_back(ToWorld(s));
+            }
+            worldShapes.push_back(shapes);
         }
 
         //    Check each pair exactly once (j > i), so no self-collisions
         //    and each object gets one CollisionEnter per colliding pair
         for (size_t i = 0; i < colliders.size(); i++) {
             for (size_t j = i + 1; j < colliders.size(); j++) {
-                const Rect &a = worldBounds[i];
-                const Rect &b = worldBounds[j];
+                // Broad phase: skip pairs whose bounding boxes don't overlap
+                if (!RectsOverlap(worldBounds[i], worldBounds[j])) {
+                    continue;
+                }
 
-                // Boxes overlap if they overlap on both axes.
-                // <= so zero-width boxes (e.g. a bullet moving straight up) still collide
-                bool overlap = a.topLeft.x <= b.topLeft.x + b.width &&
-                               b.topLeft.x <= a.topLeft.x + a.width &&
-                               a.topLeft.y <= b.topLeft.y + b.height &&
-                               b.topLeft.y <= a.topLeft.y + a.height;
-                if (overlap) {
+                // Narrow phase: compare every shape of i with every shape of j.
+                // If lines are involved keep the earliest contact along the line.
+                bool hit = false;
+                bool hasPoint = false;
+                Point2D bestPoint;
+                float bestT = 2;             // larger than any valid t (0..1)
+                for (const Shape &sa : worldShapes[i]) {
+                    for (const Shape &sb : worldShapes[j]) {
+                        bool shapeHasPoint;
+                        Point2D point;
+                        float t;
+                        if (ShapesCollide(sa, sb, shapeHasPoint, point, t)) {
+                            hit = true;
+                            if (shapeHasPoint && t < bestT) {
+                                bestT = t;
+                                bestPoint = point;
+                                hasPoint = true;
+                            }
+                        }
+                    }
+                }
+                if (!hit) {
+                    continue;
+                }
+
+                if (hasPoint) {
+                    // Give each object the contact point in its own local space
+                    mDrawContext->SetContextOffset(colliders[i]->GetLocation());
+                    mDrawContext->SetContextRotation(colliders[i]->GetRotation());
+                    Point2D pointForI = mDrawContext->ReverseTransform(bestPoint);
+                    mDrawContext->SetContextOffset(colliders[j]->GetLocation());
+                    mDrawContext->SetContextRotation(colliders[j]->GetRotation());
+                    Point2D pointForJ = mDrawContext->ReverseTransform(bestPoint);
+                    colliders[i]->CollisionEnter(colliders[j], pointForI);
+                    colliders[j]->CollisionEnter(colliders[i], pointForJ);
+                } else {
                     colliders[i]->CollisionEnter(colliders[j]);
                     colliders[j]->CollisionEnter(colliders[i]);
                 }

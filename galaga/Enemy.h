@@ -32,7 +32,8 @@ private:
     CMPUT350::Point2D mLoc;               // center of the enemy in screen space
     CMPUT350::Rect mBounds;               // box around (0,0), local space
     std::vector<CMPUT350::Shape> mShapes; // one rect = mBounds
-    bool mAlive;                          // false once hit by a player bullet
+    bool mAlive;                          // false once hit or killed
+    bool mHit;                            // true once hit by a player bullet (reported in LateUpdate)
 };
 
 #endif

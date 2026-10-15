@@ -11,7 +11,7 @@ static const int kEnemyHeight = 30;
  */
 Enemy::Enemy(CMPUT350::Point2D loc)
     : mLoc(loc), mBounds(CMPUT350::Point2D(-kEnemyWidth / 2.0f, -kEnemyHeight / 2.0f), kEnemyWidth, kEnemyHeight),
-      mAlive(true)
+      mAlive(true), mHit(false)
 {
     mShapes.push_back(CMPUT350::Shape(mBounds));
 }
@@ -29,10 +29,18 @@ void Enemy::Initialize(CMPUT350::GameContext* context){}
 void Enemy::Update(CMPUT350::GameContext* context){}
 
 /**
- * @brief No late update needed for enemies.
+ * @brief Tells Galaga (through the NotificationManager) that this enemy was
+ *        destroyed by the player, so it can add points and count enemies.
  * @param context Game context.
  */
-void Enemy::LateUpdate(CMPUT350::GameContext* context){}
+void Enemy::LateUpdate(CMPUT350::GameContext* context)
+{
+    if (mHit)
+    {
+        mHit = false;   // report only once
+        context->mNotificationManager->Notify("EnemyKilled");
+    }
+}
 
 /**
  * @brief Enemies have no background layer.
@@ -61,6 +69,7 @@ void Enemy::CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj
     if (bullet != nullptr && bullet->IsPlayerBullet())
     {
         mAlive = false;   // engine removes us at the start of next frame
+        mHit = true;      // Galaga is told in LateUpdate (we have no context here)
     }
 }
 /** @brief Marks the enemy as dead. */

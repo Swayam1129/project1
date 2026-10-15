@@ -77,6 +77,9 @@ public:
         }
     }
 
+    CMPUT350::Point2D GetLocation() const override { return CMPUT350::Point2D(0, 0); }
+    float GetRotation() const override { return 0; }
+
     const CMPUT350::Rect& GetBounds() override
     {
         static CMPUT350::Rect bounds({0, 0}, 0, 0); // Initialize with dummy values

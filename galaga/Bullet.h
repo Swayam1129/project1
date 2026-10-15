@@ -21,6 +21,9 @@ public:
     void RenderBackground(CMPUT350::GameContext* context) override;
     void RenderForeground(CMPUT350::GameContext* context) override;
 
+    CMPUT350::Point2D GetLocation() const override;
+    float GetRotation() const override;
+
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
     const CMPUT350::Rect& GetBounds() override;
@@ -31,6 +34,6 @@ private:
     CMPUT350::Point2D mHeading;  // movement per frame (direction * speed)
     bool mPlayer;                // true if fired by the player
     bool mAlive;                 // false once it hits something or leaves the screen
-    CMPUT350::Rect mBounds;      // box around previous and current position
+    CMPUT350::Rect mBounds;      // box from last position to (0,0), local space
 };
 #endif // BULLET_H

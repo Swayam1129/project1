@@ -20,18 +20,18 @@ public:
     void RenderBackground(CMPUT350::GameContext* context) override;
     void RenderForeground(CMPUT350::GameContext* context) override;
 
+    CMPUT350::Point2D GetLocation() const override;
+    float GetRotation() const override;
 
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
     const CMPUT350::Rect& GetBounds() override;
 
 private:
-    CMPUT350::Rect mBounds;   // box used for drawing and collisions
+    CMPUT350::Point2D mLoc;   // center of the enemy in screen space
+    CMPUT350::Rect mBounds;   // box around (0,0), local space
     bool mAlive;              // false once hit by a player bullet
-
-
 };
-
 
 #endif
 

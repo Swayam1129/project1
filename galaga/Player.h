@@ -21,6 +21,8 @@ public:
     void RenderBackground(CMPUT350::GameContext* context) override;
     void RenderForeground(CMPUT350::GameContext* context) override;
 
+    CMPUT350::Point2D GetLocation() const override;
+    float GetRotation() const override;
 
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
@@ -28,13 +30,13 @@ public:
     
 private:
     CMPUT350::Point2D mLoc;               // center of the ship
-    CMPUT350::Rect mBounds;               // 40x40 box around mLoc
+    CMPUT350::Rect mBounds;               // 40x40 box around (0,0), local space
     bool mAlive;
+    float mRotation = 0;                  // always 0 in play; change to test rotation
     std::weak_ptr<Bullet> mBullets[2];    // watches (doesn't own) up to 2 bullets
     bool mMoveLeft = false;               // true while a MoveLeft key is held
     bool mMoveRight = false;              // true while a MoveRight key is held
     bool mFireRequested = false;          // set by "Fire", handled in Update
-    void UpdateBounds();                  // rebuild mBounds after moving
 };
 
 #endif

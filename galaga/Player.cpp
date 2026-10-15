@@ -9,22 +9,13 @@ static const float kMoveSpeed = 8.0f;       // pixels per frame while a move key
 static const float kBulletSpeed = 15.0f;    // pixels per frame
 
 /**
- * @brief Creates the player ship.
- * @param loc The center of the ship in pixels.
+ * @brief Creates the player ship. Its bounds are fixed in local space
+ *        (centered on (0,0)); the engine moves them using GetLocation().
+ * @param loc The center of the ship in screen pixels.
  */
-Player::Player(CMPUT350::Point2D loc): mLoc(loc), mAlive(true)
+Player::Player(CMPUT350::Point2D loc)
+    : mLoc(loc), mBounds(-kPlayerSize / 2, -kPlayerSize / 2, kPlayerSize, kPlayerSize), mAlive(true)
 {
-    UpdateBounds();
-}
-
-/**
- * @brief Rebuilds the 40x40 collision box centered on the ship's position.
- *        Called whenever the ship moves.
- */
-void Player::UpdateBounds()
-{
-    mBounds = CMPUT350::Rect(mLoc.x - kPlayerSize / 2, mLoc.y - kPlayerSize / 2,
-                             kPlayerSize, kPlayerSize);
 }
 
 /**
@@ -66,7 +57,6 @@ void Player::Update(CMPUT350::GameContext* context)
         mLoc.x += kMoveSpeed;
     }
     mLoc.x = std::clamp(mLoc.x, half, maxX);   // don't leave the screen
-    UpdateBounds();
 
     if (mFireRequested)
     {
@@ -129,13 +119,13 @@ void Player::ReceiveNotification(const std::string &key)
 void Player::RenderBackground(CMPUT350::GameContext* context){}
 
 /**
- * @brief Draws the ship from several shapes centered on its position.
+ * @brief Draws the ship around its local (0,0); the engine moves/rotates it.
  * @param context Game context (used for its DrawContext).
  */
 void Player::RenderForeground(CMPUT350::GameContext* context)
 {
     CMPUT350::DrawContext *d = context->ScreenContext;
-    float x = mLoc.x, y = mLoc.y;
+    float x = 0, y = 0;   // local space: (0,0) is the ship's center
 
     d->DrawRect(CMPUT350::Rect(x - 20, y + 2, 40, 10), CMPUT350::Colors::gray);   // wings
     d->DrawRect(CMPUT350::Rect(x - 6, y - 12, 12, 30), CMPUT350::Colors::white);  // body
@@ -144,6 +134,24 @@ void Player::RenderForeground(CMPUT350::GameContext* context)
     d->DrawRect(CMPUT350::Rect(x - 16, y + 12, 6, 6), CMPUT350::Colors::red);     // left engine
     d->DrawRect(CMPUT350::Rect(x + 10, y + 12, 6, 6), CMPUT350::Colors::red);     // right engine
 
+}
+
+/**
+ * @brief The ship's center in screen space; the engine draws it here.
+ * @return Current location.
+ */
+CMPUT350::Point2D Player::GetLocation() const
+{
+    return mLoc;
+}
+
+/**
+ * @brief The ship's rotation in radians (0 during normal play).
+ * @return Current rotation.
+ */
+float Player::GetRotation() const
+{
+    return mRotation;
 }
 
 /**
@@ -171,7 +179,7 @@ bool Player::IsAlive() const
 
 /**
  * @brief The ship's bounding box, used for collisions.
- * @return The 40x40 box around the ship.
+ * @return The 40x40 box around (0,0) in local space.
  */
 const CMPUT350::Rect& Player::GetBounds(){
     return mBounds;

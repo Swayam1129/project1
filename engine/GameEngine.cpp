@@ -109,8 +109,8 @@ GameEngine::const_iterator GameEngine::end() const { return mGameObjects.cend();
  *
  * Each frame: (1) remove dead objects, (2) add and initialize new objects,
  * (3) process window events and send key notifications, (4) update, (5) process collisions,
- * (6) late update, (7) render background, (8) render foreground,
- * (9) display the frame.
+ * (6) late update, (7) render background, (8) render foreground, (9) render UI,
+ * (10) display the frame.
  */
 void GameEngine::Run() {
     // One context reused every frame; objects borrow these raw pointers
@@ -170,14 +170,21 @@ void GameEngine::Run() {
                 colliders.push_back(c);
             }
         }
+        //    Each object's local bounds -> screen-space box, computed once per
+        //    object per frame (not once per pair)
+        std::vector<Rect> worldBounds;
+        for (auto &c : colliders) {
+            mDrawContext->SetContextOffset(c->GetLocation());
+            mDrawContext->SetContextRotation(c->GetRotation());
+            worldBounds.push_back(mDrawContext->Transform(c->GetBounds()));
+        }
+
         //    Check each pair exactly once (j > i), so no self-collisions
         //    and each object gets one CollisionEnter per colliding pair
         for (size_t i = 0; i < colliders.size(); i++) {
             for (size_t j = i + 1; j < colliders.size(); j++) {
-                // Copy the bounds: GetBounds() may return a reference to a
-                // shared static Rect, which the next call would overwrite
-                Rect a = colliders[i]->GetBounds();
-                Rect b = colliders[j]->GetBounds();
+                const Rect &a = worldBounds[i];
+                const Rect &b = worldBounds[j];
 
                 // Boxes overlap if they overlap on both axes.
                 // <= so zero-width boxes (e.g. a bullet moving straight up) still collide
@@ -201,21 +208,33 @@ void GameEngine::Run() {
         // Clear window
         mWindow->clear(sf::Color::Black);
         
-        // 7. Render background
+        // 7. Render background (each object draws in its own local space)
         for (auto &obj : mGameObjects) {
             auto g = std::dynamic_pointer_cast<GraphicsObject>(obj);
             if (g != nullptr) {
+                mDrawContext->SetContextOffset(g->GetLocation());
+                mDrawContext->SetContextRotation(g->GetRotation());
                 g->RenderBackground(&context);
             }
         }
-        //8. Render foreground
+        // 8. Render foreground
         for (auto &obj : mGameObjects) {
             auto g = std::dynamic_pointer_cast<GraphicsObject>(obj);
             if (g != nullptr) {
+                mDrawContext->SetContextOffset(g->GetLocation());
+                mDrawContext->SetContextRotation(g->GetRotation());
                 g->RenderForeground(&context);
             }
         }
-        // 9. Display the frame
+        mDrawContext->SetContextOffset(Point2D(0, 0));
+        mDrawContext->SetContextRotation(0);
+
+        // 9. Render UI on top, in plain screen coordinates (GUI context is never transformed)
+        for (auto &obj : mGameObjects) {
+            obj->RenderUI(&context);
+        }
+
+        // 10. Display the frame
         mWindow->display();
         context.currentFrame++;            // global clock for all objects
     }

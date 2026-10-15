@@ -9,7 +9,11 @@ static const int kEnemyHeight = 30;
  * @brief Creates a stationary enemy.
  * @param loc The center of the enemy in pixels.
  */
-Enemy::Enemy(CMPUT350::Point2D loc): mBounds(CMPUT350::Point2D(loc.x - kEnemyWidth / 2.0f, loc.y - kEnemyHeight / 2.0f), kEnemyWidth, kEnemyHeight), mAlive(true){}
+Enemy::Enemy(CMPUT350::Point2D loc)
+    : mLoc(loc), mBounds(CMPUT350::Point2D(-kEnemyWidth / 2.0f, -kEnemyHeight / 2.0f), kEnemyWidth, kEnemyHeight),
+      mAlive(true)
+{
+}
 
 /**
  * @brief Nothing to set up when the enemy is added to the engine.
@@ -81,4 +85,22 @@ bool Enemy::IsAlive() const
 const CMPUT350::Rect& Enemy::GetBounds()
 {
      return mBounds;
+}
+
+/**
+ * @brief The enemy's center in screen space; the engine draws it here.
+ * @return Current location.
+ */
+CMPUT350::Point2D Enemy::GetLocation() const
+{
+    return mLoc;
+}
+
+/**
+ * @brief The enemy's rotation in radians (0 until enemies fly paths).
+ * @return Current rotation.
+ */
+float Enemy::GetRotation() const
+{
+    return 0;
 }

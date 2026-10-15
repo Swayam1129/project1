@@ -7,8 +7,8 @@
  * @param player true if the bullet was fired by the player, false for an enemy.
  */
 Bullet::Bullet(CMPUT350::Point2D location, CMPUT350::Point2D heading, bool player)
-                : mLoc(location), mPrevLoc(location), mHeading(heading),
-                mPlayer(player), mAlive(true), mBounds(location, location)
+    : mLoc(location), mPrevLoc(location), mHeading(heading),
+      mPlayer(player), mAlive(true), mBounds(CMPUT350::Point2D(0, 0), CMPUT350::Point2D(0, 0))
 {
 }
 
@@ -37,9 +37,9 @@ void Bullet::Initialize(CMPUT350::GameContext* context){}
  */
 void Bullet::Update(CMPUT350::GameContext* context)
 {
-     mPrevLoc = mLoc;
+    mPrevLoc = mLoc;
     mLoc += mHeading;
-    mBounds = CMPUT350::Rect(mPrevLoc, mLoc);
+    mBounds = CMPUT350::Rect(mPrevLoc - mLoc, CMPUT350::Point2D(0, 0));   // local: last position -> here
 
     int w = context->ScreenContext->GetWindowWidth();
     int h = context->ScreenContext->GetWindowHeight();
@@ -67,7 +67,7 @@ void Bullet::RenderBackground(CMPUT350::GameContext* context){}
  */
 void Bullet::RenderForeground(CMPUT350::GameContext* context)
 {
-    context->ScreenContext->DrawLine(mPrevLoc, mLoc, 3, CMPUT350::Colors::yellow);
+    context->ScreenContext->DrawLine(mPrevLoc - mLoc, CMPUT350::Point2D(0, 0), 3, CMPUT350::Colors::yellow);
 }
 
 /**
@@ -108,4 +108,22 @@ bool Bullet::IsAlive() const
 const CMPUT350::Rect& Bullet::GetBounds()
 {
     return mBounds;
+}
+
+/**
+ * @brief The bullet's current position in screen space.
+ * @return Current location.
+ */
+CMPUT350::Point2D Bullet::GetLocation() const
+{
+    return mLoc;
+}
+
+/**
+ * @brief Bullets are not rotated; their heading is in the line they draw.
+ * @return 0.
+ */
+float Bullet::GetRotation() const
+{
+    return 0;
 }

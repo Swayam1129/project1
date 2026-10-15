@@ -310,6 +310,17 @@ struct Circle {
     Circle(float x, float y, float r) : center(x, y), radius(r) {}
 };
 
+/**
+ * @brief Prints a circle as [center:(x,y) r:radius].
+ * @param os The output stream to write to.
+ * @param c The circle to print.
+ * @return The same stream, so calls can be chained.
+ */
+static std::ostream &operator<<(std::ostream &os, const Circle &c) {
+    os << "[center:" << c.center << " r:" << c.radius << "]";
+    return os;
+}
+
 /** @brief An axis-aligned rectangle: top-left corner plus width and height. */
 struct Rect {
     Point2D topLeft;
@@ -362,8 +373,16 @@ struct Rect {
     }
 
 
+    /**
+     * @brief Grows this rect to include both endpoints of a line.
+     *        A straight segment never leaves the box around its endpoints,
+     *        so including both endpoints covers the whole line.
+     * @param other The line to include.
+     * @return A reference to this rect.
+     */
     Rect &operator|=(const Line &other) {
-        // (later in 1b with line): write this code
+        *this |= other.p1;
+        *this |= other.p2;
         return *this;
     }
 

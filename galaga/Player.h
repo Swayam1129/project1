@@ -27,10 +27,12 @@ public:
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
     const CMPUT350::Rect& GetBounds() override;
+    const std::vector<CMPUT350::Shape> &GetShapes() override;
     
 private:
     CMPUT350::Point2D mLoc;               // center of the ship
     CMPUT350::Rect mBounds;               // 40x40 box around (0,0), local space
+    std::vector<CMPUT350::Shape> mShapes; // body, wings, nose in local space
     bool mAlive;
     float mRotation = 0;                  // always 0 in play; change to test rotation
     std::weak_ptr<Bullet> mBullets[2];    // watches (doesn't own) up to 2 bullets

@@ -26,11 +26,13 @@ public:
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
     const CMPUT350::Rect& GetBounds() override;
+    const std::vector<CMPUT350::Shape> &GetShapes() override;
 
 private:
-    CMPUT350::Point2D mLoc;   // center of the enemy in screen space
-    CMPUT350::Rect mBounds;   // box around (0,0), local space
-    bool mAlive;              // false once hit by a player bullet
+    CMPUT350::Point2D mLoc;               // center of the enemy in screen space
+    CMPUT350::Rect mBounds;               // box around (0,0), local space
+    std::vector<CMPUT350::Shape> mShapes; // one rect = mBounds
+    bool mAlive;                          // false once hit by a player bullet
 };
 
 #endif

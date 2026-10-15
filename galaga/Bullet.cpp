@@ -10,6 +10,7 @@ Bullet::Bullet(CMPUT350::Point2D location, CMPUT350::Point2D heading, bool playe
     : mLoc(location), mPrevLoc(location), mHeading(heading),
       mPlayer(player), mAlive(true), mBounds(CMPUT350::Point2D(0, 0), CMPUT350::Point2D(0, 0))
 {
+    mShapes.push_back(CMPUT350::Shape(CMPUT350::Line(CMPUT350::Point2D(0, 0), CMPUT350::Point2D(0, 0))));
 }
 
 /**
@@ -40,6 +41,8 @@ void Bullet::Update(CMPUT350::GameContext* context)
     mPrevLoc = mLoc;
     mLoc += mHeading;
     mBounds = CMPUT350::Rect(mPrevLoc - mLoc, CMPUT350::Point2D(0, 0));   // local: last position -> here
+    // Directed from where we were to where we are, so its first hit is the first contact
+    mShapes[0] = CMPUT350::Shape(CMPUT350::Line(mPrevLoc - mLoc, CMPUT350::Point2D(0, 0)));
 
     int w = context->ScreenContext->GetWindowWidth();
     int h = context->ScreenContext->GetWindowHeight();
@@ -126,4 +129,14 @@ CMPUT350::Point2D Bullet::GetLocation() const
 float Bullet::GetRotation() const
 {
     return 0;
+}
+
+/**
+ * @brief The bullet's collision shape: a directed line from its previous
+ *        position to its current one, in local space.
+ * @return Shapes checked by the engine after the bounding boxes overlap.
+ */
+const std::vector<CMPUT350::Shape> &Bullet::GetShapes()
+{
+    return mShapes;
 }

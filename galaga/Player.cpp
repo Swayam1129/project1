@@ -16,6 +16,10 @@ static const float kBulletSpeed = 15.0f;    // pixels per frame
 Player::Player(CMPUT350::Point2D loc)
     : mLoc(loc), mBounds(-kPlayerSize / 2, -kPlayerSize / 2, kPlayerSize, kPlayerSize), mAlive(true)
 {
+    // Collision shapes match the main parts of the drawing (see RenderForeground)
+    mShapes.push_back(CMPUT350::Shape(CMPUT350::Rect(-6, -12, 12, 30)));              // body
+    mShapes.push_back(CMPUT350::Shape(CMPUT350::Rect(-20, 2, 40, 10)));               // wings
+    mShapes.push_back(CMPUT350::Shape(CMPUT350::Circle(CMPUT350::Point2D(0, -12), 6))); // nose
 }
 
 /**
@@ -183,4 +187,13 @@ bool Player::IsAlive() const
  */
 const CMPUT350::Rect& Player::GetBounds(){
     return mBounds;
+}
+
+/**
+ * @brief The ship's collision shapes (body, wings, nose) in local space.
+ * @return Shapes checked by the engine after the bounding boxes overlap.
+ */
+const std::vector<CMPUT350::Shape> &Player::GetShapes()
+{
+    return mShapes;
 }

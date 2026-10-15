@@ -13,6 +13,7 @@ Enemy::Enemy(CMPUT350::Point2D loc)
     : mLoc(loc), mBounds(CMPUT350::Point2D(-kEnemyWidth / 2.0f, -kEnemyHeight / 2.0f), kEnemyWidth, kEnemyHeight),
       mAlive(true)
 {
+    mShapes.push_back(CMPUT350::Shape(mBounds));
 }
 
 /**
@@ -103,4 +104,13 @@ CMPUT350::Point2D Enemy::GetLocation() const
 float Enemy::GetRotation() const
 {
     return 0;
+}
+
+/**
+ * @brief The enemy's collision shapes in local space (one rect for now).
+ * @return Shapes checked by the engine after the bounding boxes overlap.
+ */
+const std::vector<CMPUT350::Shape> &Enemy::GetShapes()
+{
+    return mShapes;
 }

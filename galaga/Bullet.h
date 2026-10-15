@@ -27,6 +27,7 @@ public:
     // Collision Object Functions
     void CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj) override;
     const CMPUT350::Rect& GetBounds() override;
+    const std::vector<CMPUT350::Shape> &GetShapes() override;
 
 private:
     CMPUT350::Point2D mLoc;      // current position
@@ -35,5 +36,6 @@ private:
     bool mPlayer;                // true if fired by the player
     bool mAlive;                 // false once it hits something or leaves the screen
     CMPUT350::Rect mBounds;      // box from last position to (0,0), local space
+    std::vector<CMPUT350::Shape> mShapes;   // one line: last position -> (0,0)
 };
 #endif // BULLET_H

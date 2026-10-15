@@ -193,7 +193,10 @@ void Enemy::FireAt(CMPUT350::GameContext *context, const CMPUT350::Point2D &targ
         dir = CMPUT350::Point2D(dir.x, 0.3f);   // always shoot mostly downward
         dir.Normalize();
     }
-    auto bullet = std::make_shared<Bullet>(mLoc + dir * (kEnemyHeight / 2.0f + 2), dir * kBulletSpeed, false);
+    // CurrObject is this enemy (FireAt is called from LateUpdate), so the
+    // bullet is removed if the enemy is destroyed
+    auto bullet = std::make_shared<Bullet>(mLoc + dir * (kEnemyHeight / 2.0f + 2), dir * kBulletSpeed, false,
+                                           context->CurrObject);
     context->mEngineView->AddGameObject(bullet);
     mShotsFired++;
 }

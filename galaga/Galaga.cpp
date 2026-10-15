@@ -99,6 +99,7 @@ void Galaga::ReceiveNotification(const std::string &key)
         if (it != kEnemyPoints.end())
         {
             mScore += it->second;
+            mHighScore = std::max(mHighScore, mScore);
             mEnemiesAlive--;
         }
     }
@@ -110,8 +111,6 @@ void Galaga::ReceiveNotification(const std::string &key)
  */
 void Galaga::Update(CMPUT350::GameContext* context)
 {
-    mHighScore = std::max(mHighScore, mScore);
-
     switch (mState)
     {
         case State::kWaitingForCoin:

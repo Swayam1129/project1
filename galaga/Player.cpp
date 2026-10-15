@@ -73,7 +73,8 @@ void Player::Update(CMPUT350::GameContext* context)
                 auto bullet = std::make_shared<Bullet>(
                     CMPUT350::Point2D(mLoc.x, mLoc.y - half - 1),   // just above the ship
                     CMPUT350::Point2D(0, -kBulletSpeed),             // straight up
-                    true);                                            // player bullet
+                    true,                                             // player bullet
+                    context->CurrObject);                             // fired by this ship
                 context->mEngineView->AddGameObject(bullet);          // engine owns it
                 slot = bullet;                                        // we only watch it
                 break;                                                // one bullet per press

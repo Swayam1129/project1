@@ -2,9 +2,10 @@
 #include <cassert>
 #include "Player.h"
 #include "Bullet.h"
+#include "GameContext.h"
 
 static const float kPlayerSize = 40.0f;     // ship is about 40x40
-static const float kMoveStep = 10.0f;       // pixels per key press
+static const float kMoveSpeed = 8.0f;       // pixels per frame while a move key is held
 static const float kBulletSpeed = 15.0f;    // pixels per frame
 
 /**
@@ -27,60 +28,49 @@ void Player::UpdateBounds()
 }
 
 /**
- * @brief Nothing to set up when the player is added to the engine.
- * @param context Game context.
+ * @brief Registers the player for the keyboard notifications the game
+ *        installs in the engine (move left/right, stop, fire).
+ * @param context Game context (CurrObject is this player).
  */
 void Player::Initialize(CMPUT350::GameContext* context)
 {
+    CMPUT350::NotificationManager *nm = context->mNotificationManager;
+    nm->Register(context->CurrObject, "MoveLeft");
+    nm->Register(context->CurrObject, "StopLeft");
+    nm->Register(context->CurrObject, "MoveRight");
+    nm->Register(context->CurrObject, "StopRight");
+    nm->Register(context->CurrObject, "Fire");
 }
 
 /**
- * @brief The player only moves in response to keys, so there is nothing to
- *        update each frame.
- * @param context Game context.
- */
-void Player::Update(CMPUT350::GameContext* context)
-{
-}
-
-/**
- * @brief No late update needed for the player.
- * @param context Game context.
- */
-void Player::LateUpdate(CMPUT350::GameContext* context)
-{
-}
-
-/**
- * @brief Moves the ship with A/D and fires with space.
+ * @brief Moves the ship while a move key is held (kept inside the screen)
+ *        and fires if "Fire" was received since the last frame.
  *
  * At most two player bullets can exist at once. Bullets are tracked with
  * weak_ptrs, which don't keep them alive: once the engine removes a bullet,
  * its weak_ptr expires and that slot can fire again.
  *
- * @param context The game context (used for the screen width and to add bullets).
- * @param key The key that was pressed.
- * @return true if the key was used by the player.
+ * @param context Game context (screen width, adding bullets).
  */
-bool Player::HandleKeyEvent(CMPUT350::GameContext* context, char key)
+void Player::Update(CMPUT350::GameContext* context)
 {
     float half = kPlayerSize / 2;
     float maxX = context->ScreenContext->GetWindowWidth() - half;
 
-    if (key == 'a' || key == 'A')
+    if (mMoveLeft)
     {
-        mLoc.x = std::max(half, mLoc.x - kMoveStep);   // don't leave the screen
-        UpdateBounds();
-        return true;
+        mLoc.x -= kMoveSpeed;
     }
-    if (key == 'd' || key == 'D')
+    if (mMoveRight)
     {
-        mLoc.x = std::min(maxX, mLoc.x + kMoveStep);
-        UpdateBounds();
-        return true;
+        mLoc.x += kMoveSpeed;
     }
-    if (key == ' ')
+    mLoc.x = std::clamp(mLoc.x, half, maxX);   // don't leave the screen
+    UpdateBounds();
+
+    if (mFireRequested)
     {
+        mFireRequested = false;
         for (auto &slot : mBullets)
         {
             if (slot.expired())   // this bullet is gone (or never fired)
@@ -94,18 +84,49 @@ bool Player::HandleKeyEvent(CMPUT350::GameContext* context, char key)
                 break;                                                // one bullet per press
             }
         }
-        return true;
     }
-    return false;
+}
+
+/**
+ * @brief No late update needed for the player.
+ * @param context Game context.
+ */
+void Player::LateUpdate(CMPUT350::GameContext* context){}
+
+/**
+ * @brief Handles keyboard notifications. Only records what was asked;
+ *        the movement and firing happen in Update, which has the context.
+ * @param key The notification name.
+ */
+void Player::ReceiveNotification(const std::string &key)
+{
+    if (key == "MoveLeft")
+    {
+        mMoveLeft = true;
+    }
+    else if (key == "StopLeft")
+    {
+        mMoveLeft = false;
+    }
+    else if (key == "MoveRight")
+    {
+        mMoveRight = true;
+    }
+    else if (key == "StopRight")
+    {
+        mMoveRight = false;
+    }
+    else if (key == "Fire")
+    {
+        mFireRequested = true;
+    }
 }
 
 /**
  * @brief The player has no background layer.
  * @param context Game context.
  */
-void Player::RenderBackground(CMPUT350::GameContext* context)
-{
-}
+void Player::RenderBackground(CMPUT350::GameContext* context){}
 
 /**
  * @brief Draws the ship from several shapes centered on its position.
@@ -129,9 +150,7 @@ void Player::RenderForeground(CMPUT350::GameContext* context)
  * @brief Bullets do not hurt the player in 1a, so collisions are ignored.
  * @param obj The object collided with.
  */
-void Player::CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj)
-{
-}
+void Player::CollisionEnter(const std::shared_ptr<CMPUT350::CollisionObject>& obj){}
 
 /**
  * @brief Marks the player as dead.

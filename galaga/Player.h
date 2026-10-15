@@ -13,7 +13,7 @@ public:
     void Initialize(CMPUT350::GameContext* context) override;
     void Update(CMPUT350::GameContext* context) override;
     void LateUpdate(CMPUT350::GameContext* context) override;
-    bool HandleKeyEvent(CMPUT350::GameContext* context, char key) override;
+    void ReceiveNotification(const std::string &key) override;
     bool IsAlive() const override;
     void Kill() override;
 
@@ -31,7 +31,9 @@ private:
     CMPUT350::Rect mBounds;               // 40x40 box around mLoc
     bool mAlive;
     std::weak_ptr<Bullet> mBullets[2];    // watches (doesn't own) up to 2 bullets
-
+    bool mMoveLeft = false;               // true while a MoveLeft key is held
+    bool mMoveRight = false;              // true while a MoveRight key is held
+    bool mFireRequested = false;          // set by "Fire", handled in Update
     void UpdateBounds();                  // rebuild mBounds after moving
 };
 

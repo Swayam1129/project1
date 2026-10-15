@@ -24,9 +24,7 @@ bool Bullet::IsPlayerBullet(){
  * @brief Nothing to set up when the bullet is added to the engine.
  * @param context Game context.
  */
-void Bullet::Initialize(CMPUT350::GameContext* context)
-{
-}
+void Bullet::Initialize(CMPUT350::GameContext* context){}
 
 /**
  * @brief Moves the bullet one step and updates its bounding box.
@@ -55,28 +53,13 @@ void Bullet::Update(CMPUT350::GameContext* context)
  * @brief No late update needed for bullets.
  * @param context Game context.
  */
-void Bullet::LateUpdate(CMPUT350::GameContext* context)
-{
-}
-
-/**
- * @brief Bullets ignore key presses.
- * @param context Game context.
- * @param key The key pressed.
- * @return false (the key is not used).
- */
-bool Bullet::HandleKeyEvent(CMPUT350::GameContext* context, char key)
-{
-    return false;
-}
+void Bullet::LateUpdate(CMPUT350::GameContext* context){}
 
 /**
  * @brief Bullets have no background layer.
  * @param context Game context.
  */
-void Bullet::RenderBackground(CMPUT350::GameContext* context)
-{
-}
+void Bullet::RenderBackground(CMPUT350::GameContext* context){}
 
 /**
  * @brief Draws the bullet as a line along the path it travelled this frame.

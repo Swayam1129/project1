@@ -131,6 +131,18 @@ int main()
         const int kHeight = 850;
 
         CMPUT350::GameEngine engine(kWidth, kHeight, "Galaga");
+
+        // Key -> notification mapping (moves into Galaga::Initialize in step 6)
+        using Scan = sf::Keyboard::Scan;
+        engine.InstallKeyDownNotification(static_cast<int>(Scan::A), "MoveLeft");
+        engine.InstallKeyDownNotification(static_cast<int>(Scan::Left), "MoveLeft");
+        engine.InstallKeyUpNotification(static_cast<int>(Scan::A), "StopLeft");
+        engine.InstallKeyUpNotification(static_cast<int>(Scan::Left), "StopLeft");
+        engine.InstallKeyDownNotification(static_cast<int>(Scan::D), "MoveRight");
+        engine.InstallKeyDownNotification(static_cast<int>(Scan::Right), "MoveRight");
+        engine.InstallKeyUpNotification(static_cast<int>(Scan::D), "StopRight");
+        engine.InstallKeyUpNotification(static_cast<int>(Scan::Right), "StopRight");
+        engine.InstallKeyDownNotification(static_cast<int>(Scan::Space), "Fire");
         auto player = std::make_shared<Player>(CMPUT350::Point2D(kWidth / 2, kHeight - 100));
         engine.AddGameObject(player);
         engine.AddGameObject(std::make_shared<Stars>(250, CMPUT350::Rect(0, 0, kWidth, kHeight)));

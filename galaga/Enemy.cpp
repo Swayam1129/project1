@@ -9,54 +9,31 @@ static const int kEnemyHeight = 30;
  * @brief Creates a stationary enemy.
  * @param loc The center of the enemy in pixels.
  */
-Enemy::Enemy(CMPUT350::Point2D loc): mBounds(CMPUT350::Point2D(loc.x - kEnemyWidth / 2.0f, loc.y - kEnemyHeight / 2.0f),
-              kEnemyWidth, kEnemyHeight), mAlive(true)
-{
-
-}
+Enemy::Enemy(CMPUT350::Point2D loc): mBounds(CMPUT350::Point2D(loc.x - kEnemyWidth / 2.0f, loc.y - kEnemyHeight / 2.0f), kEnemyWidth, kEnemyHeight), mAlive(true){}
 
 /**
  * @brief Nothing to set up when the enemy is added to the engine.
  * @param context Game context.
  */
-void Enemy::Initialize(CMPUT350::GameContext* context)
-{
-}
+void Enemy::Initialize(CMPUT350::GameContext* context){}
 
 /**
  * @brief Enemies do not move in 1a, so there is nothing to update.
  * @param context Game context.
  */
-void Enemy::Update(CMPUT350::GameContext* context)
-{
-}
+void Enemy::Update(CMPUT350::GameContext* context){}
 
 /**
  * @brief No late update needed for enemies.
  * @param context Game context.
  */
-void Enemy::LateUpdate(CMPUT350::GameContext* context)
-{
-}
-
-/**
- * @brief Enemies ignore key presses.
- * @param context Game context.
- * @param key The key pressed.
- * @return false (the key is not used).
- */
-bool Enemy::HandleKeyEvent(CMPUT350::GameContext* context, char key)
-{
-    return false;
-}
+void Enemy::LateUpdate(CMPUT350::GameContext* context){}
 
 /**
  * @brief Enemies have no background layer.
  * @param context Game context.
  */
-void Enemy::RenderBackground(CMPUT350::GameContext* context)
-{
-}
+void Enemy::RenderBackground(CMPUT350::GameContext* context){}
 
 /**
  * @brief Draws the enemy as a filled rectangle.

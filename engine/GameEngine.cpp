@@ -31,6 +31,12 @@ GameEngine::GameEngine(unsigned int width, unsigned int height, const std::strin
     }
 
     mDrawContext = std::make_unique<DrawContext>(mWindow, mFont);
+    mGUIContext = std::make_unique<DrawContext>(mWindow, mFont);
+
+    // One KeyPressed per physical press (no OS auto-repeat), so "Fire"
+    // fires once per press and Move/Stop messages stay paired
+    mWindow->setKeyRepeatEnabled(false);
+
 }
 
 /**
@@ -52,11 +58,57 @@ void GameEngine::AddGameObject(std::shared_ptr<GameObject> gameObject) {
 }
 
 /**
+ * @brief Sends a notification whenever a key is pressed. A key can have
+ *        several notifications, and several keys can share one.
+ * @param key SFML scancode of the key (cast to int).
+ * @param notification Message sent to the NotificationManager on press.
+ */
+void GameEngine::InstallKeyDownNotification(int key, const std::string &notification) {
+    mKeyDownNotifications[key].push_back(notification);
+}
+
+/**
+ * @brief Sends a notification whenever a key is released.
+ * @param key SFML scancode of the key (cast to int).
+ * @param notification Message sent to the NotificationManager on release.
+ */
+void GameEngine::InstallKeyUpNotification(int key, const std::string &notification) {
+    mKeyUpNotifications[key].push_back(notification);
+}
+
+/**
+ * @brief Sends every notification registered for a key in the given table.
+ * @param table mKeyDownNotifications or mKeyUpNotifications.
+ * @param key SFML scancode of the key (cast to int).
+ */
+void GameEngine::SendKeyNotifications(const tKeyTable &table, int key) {
+    auto it = table.find(key);
+    if (it == table.end()) {
+        return;
+    }
+    for (const std::string &message : it->second) {
+        mNotificationManager.Notify(message);
+    }
+}
+
+/** @return Const iterator to the first object in the engine. */
+GameEngine::const_iterator GameEngine::cbegin() const { return mGameObjects.cbegin(); }
+
+/** @return Const iterator past the last object in the engine. */
+GameEngine::const_iterator GameEngine::cend() const { return mGameObjects.cend(); }
+
+/** @return Same as cbegin(); allows range-based for loops over the engine. */
+GameEngine::const_iterator GameEngine::begin() const { return mGameObjects.cbegin(); }
+
+/** @return Same as cend(); allows range-based for loops over the engine. */
+GameEngine::const_iterator GameEngine::end() const { return mGameObjects.cend(); }
+
+/**
  * @brief Gives control to the game engine. Runs the game loop until the
  *        window is closed.
  *
  * Each frame: (1) remove dead objects, (2) add and initialize new objects,
- * (3) process window/keyboard events, (4) update, (5) process collisions,
+ * (3) process window events and send key notifications, (4) update, (5) process collisions,
  * (6) late update, (7) render background, (8) render foreground,
  * (9) display the frame.
  */
@@ -65,6 +117,9 @@ void GameEngine::Run() {
     GameContext context;
     context.mEngineView = this;
     context.ScreenContext = mDrawContext.get();
+    context.GUIContext = mGUIContext.get();
+    context.mNotificationManager = &mNotificationManager;
+    context.currentFrame = 0;
     while (mWindow->isOpen()) {
         // 1. Remove dead objects: swap with last + pop_back, O(1) each, no gaps
         for (size_t i = 0; i < mGameObjects.size();) {
@@ -80,6 +135,7 @@ void GameEngine::Run() {
         toAdd.swap(mNewObjects);
         for (auto &obj : toAdd) {
             mGameObjects.push_back(obj);
+            context.CurrObject = obj;      // lets the object register itself
             obj->Initialize(&context);
         }
         
@@ -87,13 +143,10 @@ void GameEngine::Run() {
         while (const std::optional event = mWindow->pollEvent()) {
             if (event->is<sf::Event::Closed>()) {
                 mWindow->close();
-            } else if (const auto *keyPressed = event->getIf<sf::Event::TextEntered>()) {
-                if (keyPressed->unicode < 128) {   // low-order ASCII only
-                    char key = static_cast<char>(keyPressed->unicode);
-                    for (auto &obj : mGameObjects) {
-                        obj->HandleKeyEvent(&context, key);
-                    }
-                }
+            } else if (const auto *pressed = event->getIf<sf::Event::KeyPressed>()) {
+                SendKeyNotifications(mKeyDownNotifications, static_cast<int>(pressed->scancode));
+            } else if (const auto *released = event->getIf<sf::Event::KeyReleased>()) {
+                SendKeyNotifications(mKeyUpNotifications, static_cast<int>(released->scancode));
             }
         }
 
@@ -103,6 +156,7 @@ void GameEngine::Run() {
 
         // 4. Update
         for (auto &obj : mGameObjects) {
+            context.CurrObject = obj;
             obj->Update(&context);
         }
 
@@ -140,6 +194,7 @@ void GameEngine::Run() {
 
         // 6. Late updates
         for (auto &obj : mGameObjects) {
+            context.CurrObject = obj;
             obj->LateUpdate(&context);
         }
         
@@ -162,6 +217,7 @@ void GameEngine::Run() {
         }
         // 9. Display the frame
         mWindow->display();
+        context.currentFrame++;            // global clock for all objects
     }
 }
 

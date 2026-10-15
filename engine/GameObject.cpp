@@ -30,14 +30,6 @@ void GameObject::LateUpdate(GameContext *context) { return; }
 void GameObject::RenderUI(GameContext *contextrender) { return; }
 
 /**
- * @brief Called for every key press.
- * @param context Game context.
- * @param key The key pressed (low-order ASCII).
- * @return true if the object used the key; false by default.
- */
-bool GameObject::HandleKeyEvent(GameContext *context, char key) { return false; }
-
-/**
  * @brief Whether the object should stay in the engine.
  * @return true by default; dead objects are removed at the start of the next frame.
  */

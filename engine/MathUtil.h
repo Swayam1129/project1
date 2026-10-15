@@ -229,28 +229,74 @@ static Point2D operator*(float number, const Point2D &rhs) {
     return multiple;
 }
 
-/** @brief A line segment between two points (Later in 1b). */
+/** @brief A line segment from p1 to p2. Treated as directed (p1 -> p2) for collisions. */
 struct Line {
     Point2D p1, p2;
 
+    /** @brief Creates a line from two points (defaults to a zero-length line at (0,0)). */
     Line(Point2D p1 = {0, 0}, Point2D p2 = {0, 0}) : p1(p1), p2(p2) {}
+
+    /** @brief Creates a line from the coordinates of its two endpoints. */
     Line(float x1, float y1, float x2, float y2) : p1(x1, y1), p2(x2, y2) {}
+
+    /**
+     * @brief Length of the segment.
+     * @return Distance from p1 to p2 in pixels.
+     */
     float Length() const {
-        // (later in 1b with line): write this code
-        return 0;
+        return static_cast<float>(p1.Distance(p2));
     }
+
+    /**
+     * @brief Finds the point on this segment closest to p.
+     *        p is projected onto the line, and the projection is clamped
+     *        to the segment so the result never lies past p1 or p2.
+     * @param p The point to measure from.
+     * @return The closest point on the segment.
+     */
     Point2D ClosestPoint(const Point2D &p) const {
-        // (later in 1b with line): write this code
-        return p;
+        Point2D d = p2 - p1;
+        float lenSq = d * d;              // squared length (dot product with itself)
+        if (lenSq == 0) {
+            return p1;                    // segment is a single point
+        }
+        float t = ((p - p1) * d) / lenSq; // how far along the segment (0 = p1, 1 = p2)
+        t = std::clamp(t, 0.0f, 1.0f);    // stay on the segment
+        return p1 + d * t;
     }
-    bool Crosses(Line other, Point2D &crossingPoint) const {
-        // (later in 1b with line): write this code
+
+    /**
+     * @brief Checks whether this segment crosses another segment.
+     * @param other The other segment.
+     * @param crossingPoint Set to the intersection point if they cross.
+     * @return true if the segments intersect; false if they don't or are parallel.
+     */
+    bool Crosses(const Line &other, Point2D &crossingPoint) const {
+        Point2D r = p2 - p1;              // direction of this line
+        Point2D s = other.p2 - other.p1;  // direction of the other line
+        float denom = Point2D::Cross(r, s);
+        if (denom == 0) {
+            return false;                 // parallel (or collinear): no single crossing point
+        }
+        Point2D q = other.p1 - p1;
+        float t = Point2D::Cross(q, s) / denom;  // position along this line
+        float u = Point2D::Cross(q, r) / denom;  // position along the other line
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+            crossingPoint = p1 + r * t;
+            return true;
+        }
         return false;
     }
 };
 
+/**
+ * @brief Prints a line as (x1,y1)->(x2,y2).
+ * @param os The output stream to write to.
+ * @param l The line to print.
+ * @return The same stream, so calls can be chained.
+ */
 static std::ostream &operator<<(std::ostream &os, const Line &l) {
-    // (later in 1b with line): write this code
+    os << l.p1 << "->" << l.p2;
     return os;
 }
 

@@ -47,4 +47,11 @@ bool GameObject::IsAlive() const { return true; }
  * @brief Marks the object as dead. Does nothing by default.
  */
 void GameObject::Kill() {}
+
+/**
+ * @brief Called by the NotificationManager when a message this object
+ *        registered for is sent. Does nothing by default.
+ * @param key The message name.
+ */
+void GameObject::ReceiveNotification(const std::string &key) {}
 }  // namespace CMPUT350

@@ -1,6 +1,6 @@
 # CMPUT 350 Project 1: Game Engine + Galaga
 
-**Team:** Swayam Sagar, [teammate name(s)]
+**Team:** Swayam Sagar
 
 Part 1a is tagged `project1a-final`. The current `main` branch is Part 1b.
 See `project.txt` for the full description of the implementation, the
